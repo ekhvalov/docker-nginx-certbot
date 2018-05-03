@@ -1,34 +1,24 @@
-FROM nginx
-MAINTAINER Elliot Saba <staticfloat@gmail.com>
+FROM nginx:alpine
 
 VOLUME /etc/letsencrypt
 EXPOSE 80
 EXPOSE 443
 
+COPY config/nginx-deafult.conf /etc/nginx/conf.d/default.conf
+COPY config/certbot.ini /root/.config/letsencrypt/cli.ini
+COPY config/crontab /etc/cron.d/certbot
+COPY scripts/ /scripts
+
 # Do this apt/pip stuff all in one RUN command to avoid creating large
 # intermediate layers on non-squashable docker installs
-RUN apt update && \
-    apt install -y cron python python-dev libffi6 libffi-dev libssl-dev curl build-essential && \
-    curl -L 'https://bootstrap.pypa.io/get-pip.py' | python && \
-    pip install -U cffi certbot && \
-    apt remove --purge -y python-dev build-essential libffi-dev libssl-dev curl && \
-    apt-get autoremove -y && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+RUN apk add --update --no-cache \
+        certbot \
+        openssl \
+    # Update crontab
+    && crontab /etc/cron.d/certbot \
+    && chmod +x /scripts/*.sh \
+    # Make directory for "/.well-known/acme-challenge/" validation
+    && mkdir -p /var/www/acme/.well-known/acme-challenge \
+    && mkdir -p /etc/nginx/conf.d-available
 
-# Copy in cron job and scripts for certbot
-COPY ./crontab /etc/cron.d/certbot
-RUN crontab /etc/cron.d/certbot
-COPY ./scripts/ /scripts
-RUN chmod +x /scripts/*.sh
-
-# Add /scripts/startup directory to source more startup scripts
-RUN mkdir -p /scripts/startup
-
-# Copy in default nginx configuration (which just forwards ACME requests to
-# certbot, or redirects to HTTPS, but has no HTTPS configurations by default).
-RUN rm -f /etc/nginx/conf.d/*
-COPY nginx_conf.d/ /etc/nginx/conf.d/
-
-ENTRYPOINT []
-CMD ["/bin/bash", "/scripts/entrypoint.sh"]
+CMD ["/scripts/run.sh"]

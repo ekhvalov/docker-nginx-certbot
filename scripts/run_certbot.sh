@@ -1,7 +1,7 @@
 #!/bin/sh
 
 # Source in util.sh so we can have our nice tools
-. $(cd $(dirname $0); pwd)/util.sh
+. /scripts/functions.sh
 
 # We require an email to register the ssl certificate for
 if [ -z "$CERTBOT_EMAIL" ]; then
@@ -13,7 +13,7 @@ exit_code=0
 set -x
 # Loop over every domain we can find
 for domain in $(parse_domains); do
-    if ! get_certificate $domain $CERTBOT_EMAIL; then
+    if ! get_certificate ${domain} ${CERTBOT_EMAIL}; then
         error "Cerbot failed for $domain. Check the logs for details."
         exit_code=1
     fi
@@ -21,10 +21,10 @@ done
 
 # After trying to get all our certificates, auto enable any configs that we
 # did indeed get certificates for
-auto_enable_configs
+enable_disable_configs
 
 # Finally, tell nginx to reload the configs
-kill -HUP $NGINX_PID
+nginx -s reload
 
 set +x
-exit $exit_code
+exit ${exit_code}
